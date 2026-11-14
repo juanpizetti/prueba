@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/view_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Encabezado con el logo -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_login"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingTop="28dp"
+                android:paddingBottom="24dp">
+
+                <ImageView
+                    android:layout_width="200dp"
+                    android:layout_height="200dp"
+                    android:contentDescription="@string/logo_desc"
+                    android:src="@drawable/logo" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/app_name"
+                    android:textColor="@color/white"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvVersion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/sky"
+                    android:textSize="14sp" />
+
+                <View
+                    android:layout_width="64dp"
+                    android:layout_height="3dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/gold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Diseñado y desarrollado por"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ESCUSUB · SECTOR TICOM"
+                    android:textColor="@color/gold"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center"
+                    android:paddingStart="24dp"
+                    android:paddingEnd="24dp"
+                    android:text="Tecnologías de la Información y Comunicaciones"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/AboutCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/AboutCardBody">
+
+                    <TextView
+                        style="@style/AboutTitle"
+                        android:text="Sobre la aplicación" />
+
+                    <TextView
+                        style="@style/AboutText"
+                        android:text="Control IPs es la herramienta del Sector TICOM para registrar las PC de la ESCUSUB con su dirección IP y MAC, asignar IPs automáticamente en cada red y llevar el control de qué equipos están habilitados.\n\nFunciona 100 % en el celular, sin internet: los datos se guardan en una base local." />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/AboutCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/AboutCardBody">
+
+                    <TextView
+                        style="@style/AboutTitle"
+                        android:text="Funciones" />
+
+                    <TextView
+                        style="@style/AboutText"
+                        android:text="• Asignación automática de IP por red, informando la IP asignada.\n• IP y MAC únicas: nunca se repiten.\n• Técnicos cargan equipos que quedan en ROJO (pendientes).\n• El administrador los activa y pasan a VERDE.\n• Gestión de usuarios, redes y exportación a CSV." />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:background="@color/estado_pendiente"
+                            android:gravity="center"
+                            android:padding="6dp"
+                            android:text="PENDIENTE"
+                            android:textColor="@color/white"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="1"
+                            android:background="@color/estado_activo"
+                            android:gravity="center"
+                            android:padding="6dp"
+                            android:text="ACTIVO"
+                            android:textColor="@color/white"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardRedes"
+                style="@style/AboutCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone">
+
+                <LinearLayout style="@style/AboutCardBody">
+
+                    <TextView
+                        style="@style/AboutTitle"
+                        android:text="Redes configuradas" />
+
+                    <TextView
+                        android:id="@+id/tvRedes"
+                        style="@style/AboutText"
+                        android:fontFamily="monospace"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:contentDescription="@string/logo_desc"
+                android:src="@drawable/logo" />
+
+            <TextView
+                android:id="@+id/tvCopyright"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="6dp"
+                android:paddingBottom="28dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

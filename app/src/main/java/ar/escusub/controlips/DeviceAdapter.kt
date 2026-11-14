@@ -36,7 +36,7 @@ class DeviceAdapter(
             tvEstado.setBackgroundColor(color)
             tvEstado.text = if (d.activo) "ACTIVO" else "PENDIENTE"
             tvNombre.text = d.nombreEquipo
-            tvIp.text = "IP:  ${d.direccionIp}"
+            tvIp.text = "IP:  ${d.direccionIp}   ·   ${d.redNombre ?: "Sin red"}"
             tvMac.text = "MAC: ${d.direccionMac}"
             tvInfo.text = "${d.oficina} · ${d.correoInterno} · ${d.tipo}"
             tvMeta.text = buildString {

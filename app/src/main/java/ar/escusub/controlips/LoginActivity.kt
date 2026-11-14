@@ -23,6 +23,7 @@ class LoginActivity : BaseActivity() {
         setContentView(b.root)
 
         b.btnLogin.setOnClickListener { ingresar() }
+        b.btnAbout.setOnClickListener { startActivity(Intent(this, AboutActivity::class.java)) }
         b.etPass.setOnEditorActionListener { _, id, _ ->
             if (id == EditorInfo.IME_ACTION_DONE) { ingresar(); true } else false
         }

@@ -31,5 +31,10 @@ object Validators {
     fun longAIp(v: Long): String =
         listOf(24, 16, 8, 0).joinToString(".") { ((v shr it) and 0xFF).toString() }
 
+    /** Máscara de red como entero de 32 bits. */
+    fun mascara(prefijo: Int): Long = if (prefijo == 0) 0L else (0xFFFFFFFFL shl (32 - prefijo)) and 0xFFFFFFFFL
+
+    fun mascaraTexto(prefijo: Int) = longAIp(mascara(prefijo))
+
     fun correoValido(raw: String) = Patterns.EMAIL_ADDRESS.matcher(raw.trim()).matches()
 }

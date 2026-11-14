@@ -11,13 +11,15 @@ import android.database.sqlite.SQLiteOpenHelper
  * con el agregado del campo `estado` (pendiente = rojo / activo = verde).
  */
 class DbHelper private constructor(ctx: Context) :
-    SQLiteOpenHelper(ctx.applicationContext, "control_ips.db", null, 2) {
+    SQLiteOpenHelper(ctx.applicationContext, "control_ips.db", null, 3) {
 
     companion object {
-        const val IP_INICIO_DEF = "192.168.1.10"
-        const val IP_FIN_DEF = "192.168.1.250"
-        /** Máximo de direcciones en el rango (equivale a una red /16). */
-        const val RANGO_MAX = 65536L
+        /** Redes iniciales (gateway = .1, se asigna desde la siguiente IP hasta la última antes del broadcast). */
+        val REDES_INICIALES = listOf(
+            Red(1, "Red Principal", "172.21.88.1", 23, "172.21.88.2", "172.21.89.254"),
+            Red(2, "Red DMZ", "172.23.28.1", 26, "172.23.28.2", "172.23.28.62"),
+            Red(3, "Red Wifi", "192.168.66.1", 24, "192.168.66.2", "192.168.66.254"),
+        )
 
         @Volatile private var instance: DbHelper? = null
         fun get(ctx: Context): DbHelper =
@@ -32,6 +34,7 @@ class DbHelper private constructor(ctx: Context) :
     }
 
     override fun onCreate(db: SQLiteDatabase) {
+        crearRedes(db)
         db.execSQL(
             """
             CREATE TABLE tecnicos (
@@ -57,12 +60,12 @@ class DbHelper private constructor(ctx: Context) :
               tipo TEXT NOT NULL DEFAULT 'Institucional',
               estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','activo')),
               activado_por INTEGER REFERENCES tecnicos(id) ON DELETE SET NULL,
-              fecha_activacion TEXT
+              fecha_activacion TEXT,
+              red_id INTEGER REFERENCES redes(id) ON DELETE SET NULL
             )
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX idx_disp_tecnico ON dispositivos(tecnico_id)")
-        crearConfig(db)
 
         // Usuarios importados de control_ips.sql (mismas contraseñas que en el sistema web).
         val seed = listOf(
@@ -79,28 +82,70 @@ class DbHelper private constructor(ctx: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) crearConfig(db)
+        if (oldVersion < 3) {
+            // v3: varias redes. Cada equipo existente se asocia a la red que contiene su IP.
+            crearRedes(db)
+            db.execSQL("ALTER TABLE dispositivos ADD COLUMN red_id INTEGER REFERENCES redes(id) ON DELETE SET NULL")
+            db.rawQuery("SELECT id, direccion_ip FROM dispositivos", null).use { c ->
+                while (c.moveToNext()) {
+                    val red = REDES_INICIALES.firstOrNull { it.contiene(c.getString(1)) } ?: continue
+                    db.execSQL("UPDATE dispositivos SET red_id = ? WHERE id = ?", arrayOf(red.id, c.getLong(0)))
+                }
+            }
+        }
     }
 
-    /** v2: configuración del rango de IPs automáticas. */
-    private fun crearConfig(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS config (clave TEXT PRIMARY KEY, valor TEXT NOT NULL)")
-        db.execSQL("INSERT OR IGNORE INTO config VALUES ('ip_inicio', '$IP_INICIO_DEF'), ('ip_fin', '$IP_FIN_DEF')")
+    private fun crearRedes(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS redes (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nombre TEXT NOT NULL UNIQUE COLLATE NOCASE,
+              gateway TEXT NOT NULL,
+              prefijo INTEGER NOT NULL,
+              ip_inicio TEXT NOT NULL,
+              ip_fin TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+        for (r in REDES_INICIALES) db.insertWithOnConflict("redes", null, r.valores().apply { put("id", r.id) }, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
-    // ---------------------------------------------------------- Rango de IPs
+    // ----------------------------------------------------------------- Redes
 
-    private fun config(clave: String): String? =
-        readableDatabase.rawQuery("SELECT valor FROM config WHERE clave = ?", arrayOf(clave)).use { c ->
-            if (c.moveToFirst()) c.getString(0) else null
+    private fun Red.valores() = ContentValues().apply {
+        put("nombre", nombre.trim()); put("gateway", gateway); put("prefijo", prefijo)
+        put("ip_inicio", ipInicio); put("ip_fin", ipFin)
+    }
+
+    private fun Cursor.toRed() = Red(
+        id = getLong(getColumnIndexOrThrow("id")),
+        nombre = getString(getColumnIndexOrThrow("nombre")),
+        gateway = getString(getColumnIndexOrThrow("gateway")),
+        prefijo = getInt(getColumnIndexOrThrow("prefijo")),
+        ipInicio = getString(getColumnIndexOrThrow("ip_inicio")),
+        ipFin = getString(getColumnIndexOrThrow("ip_fin")),
+    )
+
+    fun redes(): List<Red> =
+        readableDatabase.rawQuery("SELECT * FROM redes ORDER BY id", null).use { c ->
+            buildList { while (c.moveToNext()) add(c.toRed()) }
         }
 
-    /** (inicio, fin) del rango de IPs que se asignan automáticamente. */
-    fun rangoIp(): Pair<String, String> =
-        (config("ip_inicio") ?: IP_INICIO_DEF) to (config("ip_fin") ?: IP_FIN_DEF)
+    fun red(id: Long): Red? = redes().firstOrNull { it.id == id }
 
-    fun guardarRangoIp(inicio: String, fin: String) {
-        writableDatabase.execSQL("INSERT OR REPLACE INTO config VALUES ('ip_inicio', ?), ('ip_fin', ?)", arrayOf(inicio, fin))
+    /** Alta (id = 0) o modificación. Lanza SQLiteConstraintException si el nombre ya existe. */
+    fun guardarRed(r: Red): Long =
+        if (r.id == 0L) writableDatabase.insertOrThrow("redes", null, r.valores())
+        else { writableDatabase.updateWithOnConflict("redes", r.valores(), "id = ?", arrayOf(r.id.toString()), SQLiteDatabase.CONFLICT_ABORT); r.id }
+
+    fun equiposEnRed(id: Long): Int =
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM dispositivos WHERE red_id = ?", arrayOf(id.toString())).use { c ->
+            c.moveToFirst(); c.getInt(0)
+        }
+
+    fun eliminarRed(id: Long) {
+        writableDatabase.delete("redes", "id = ?", arrayOf(id.toString()))
     }
 
     private fun ipsUsadas(): Set<String> =
@@ -108,26 +153,27 @@ class DbHelper private constructor(ctx: Context) :
             buildSet { while (c.moveToNext()) add(c.getString(0)) }
         }
 
-    /** Primera IP libre del rango, o null si el rango está completo. */
-    fun siguienteIpLibre(): String? {
-        val (ini, fin) = rangoIp()
+    /** Primera IP libre del rango de la red, o null si está completo. */
+    fun siguienteIpLibre(red: Red): String? {
         val usadas = ipsUsadas()
-        var v = Validators.ipALong(ini)
-        val end = Validators.ipALong(fin)
+        var v = Validators.ipALong(red.ipInicio)
+        val end = Validators.ipALong(red.ipFin)
         while (v <= end) {
             val ip = Validators.longAIp(v)
-            if (ip !in usadas) return ip
+            if (ip !in usadas && red.asignable(ip)) return ip
             v++
         }
         return null
     }
 
-    /** Cantidad de IPs libres en el rango. */
-    fun ipsLibres(): Int {
-        val (ini, fin) = rangoIp()
-        val a = Validators.ipALong(ini); val b = Validators.ipALong(fin)
-        val ocupadas = ipsUsadas().count { Validators.ipALong(it) in a..b }
-        return (b - a + 1).toInt() - ocupadas
+    /** Cantidad de IPs libres en el rango asignable de la red. */
+    fun ipsLibres(red: Red): Int {
+        val a = Validators.ipALong(red.ipInicio); val b = Validators.ipALong(red.ipFin)
+        val usadas = ipsUsadas()
+        var libres = 0
+        var v = a
+        while (v <= b) { val ip = Validators.longAIp(v); if (ip !in usadas && red.asignable(ip)) libres++; v++ }
+        return libres
     }
 
     // ------------------------------------------------------------------ Técnicos
@@ -188,8 +234,9 @@ class DbHelper private constructor(ctx: Context) :
     // ------------------------------------------------------------- Dispositivos
 
     private val selectDisp = """
-        SELECT d.*, t.nombre_completo AS tecnico_nombre, a.nombre_completo AS activador_nombre
+        SELECT d.*, t.nombre_completo AS tecnico_nombre, a.nombre_completo AS activador_nombre, r.nombre AS red_nombre
         FROM dispositivos d
+        LEFT JOIN redes r ON r.id = d.red_id
         LEFT JOIN tecnicos t ON t.id = d.tecnico_id
         LEFT JOIN tecnicos a ON a.id = d.activado_por
     """.trimIndent()
@@ -207,6 +254,8 @@ class DbHelper private constructor(ctx: Context) :
         tecnicoNombre = str("tecnico_nombre"),
         fechaRegistro = str("fecha_registro"),
         tipo = str("tipo") ?: "Institucional",
+        redId = getColumnIndexOrThrow("red_id").let { if (isNull(it)) null else getLong(it) },
+        redNombre = str("red_nombre"),
         estado = str("estado")!!,
         activadoPorNombre = str("activador_nombre"),
         fechaActivacion = str("fecha_activacion"),
@@ -216,9 +265,10 @@ class DbHelper private constructor(ctx: Context) :
      * @param estado null = todos
      * @param soloTecnico si no es null, sólo los cargados por ese técnico
      */
-    fun dispositivos(estado: String?, busqueda: String, soloTecnico: Long?): List<Dispositivo> {
+    fun dispositivos(estado: String?, busqueda: String, soloTecnico: Long?, redId: Long? = null): List<Dispositivo> {
         val where = mutableListOf<String>()
         val args = mutableListOf<String>()
+        if (redId != null) { where += "d.red_id = ?"; args += redId.toString() }
         if (estado != null) { where += "d.estado = ?"; args += estado }
         if (soloTecnico != null) { where += "d.tecnico_id = ?"; args += soloTecnico.toString() }
         val q = busqueda.trim()
@@ -259,6 +309,7 @@ class DbHelper private constructor(ctx: Context) :
     private fun Dispositivo.values() = ContentValues().apply {
         put("nombre_equipo", nombreEquipo); put("direccion_ip", direccionIp); put("direccion_mac", direccionMac)
         put("oficina", oficina); put("correo_interno", correoInterno); put("tipo", tipo)
+        put("red_id", redId)
     }
 
     /** Lanza SQLiteConstraintException si la IP o la MAC ya existen. */

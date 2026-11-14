@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -41,6 +42,21 @@
                     android:maxLength="100" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilRed"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Red *">
+
+                <AutoCompleteTextView
+                    android:id="@+id/etRed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/swAutoIp"
                 android:layout_width="match_parent"
@@ -73,7 +89,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="Dirección MAC *  (ej: AA:BB:CC:DD:EE:FF)">
+                android:hint="Dirección MAC *"
+                app:helperText="Ej: AA:BB:CC:DD:EE:FF (también acepta - o sin separadores)">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etMac"

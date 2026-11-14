@@ -23,6 +23,7 @@
             android:name=".DeviceFormActivity"
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".UsersActivity" />
+        <activity android:name=".AboutActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
