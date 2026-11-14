@@ -24,4 +24,11 @@ class LogicTest {
         assertNull(Validators.normalizarMac("AA:BB:CC:DD:EE"))
         assertNull(Validators.normalizarMac("GG:BB:CC:DD:EE:FF"))
     }
+
+    @Test fun urlDelServidorNormalizada() {
+        val ok = "https://orjagamijujyrwciagit.supabase.co"
+        assertEquals(ok, Api.normalizarUrl("https://orjagamijujyrwciagit.supabase.co/rest/v1/"))
+        assertEquals(ok, Api.normalizarUrl(" https://orjagamijujyrwciagit.supabase.co/ "))
+        assertEquals(ok, Api.normalizarUrl(ok))
+    }
 }

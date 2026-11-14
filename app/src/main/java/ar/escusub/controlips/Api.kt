@@ -22,8 +22,15 @@ class ApiException(val status: Int, message: String) : Exception(message) {
 object Api {
     private const val PREFS = "servidor"
 
-    fun url(ctx: Context): String =
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("url", null) ?: BuildConfig.SUPABASE_URL
+    fun url(ctx: Context): String = normalizarUrl(
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("url", null) ?: BuildConfig.SUPABASE_URL)
+
+    /** Acepta la URL del proyecto con o sin "/rest/v1/" y barras finales: https://xxxx.supabase.co */
+    fun normalizarUrl(raw: String): String {
+        var u = raw.trim().trimEnd('/')
+        for (suf in listOf("/rest/v1", "/rest")) if (u.endsWith(suf, ignoreCase = true)) u = u.dropLast(suf.length)
+        return u.trimEnd('/')
+    }
 
     fun clave(ctx: Context): String =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("clave", null) ?: BuildConfig.SUPABASE_KEY
@@ -32,7 +39,7 @@ object Api {
 
     fun guardarConfig(ctx: Context, url: String, clave: String) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString("url", url.trim().trimEnd('/')).putString("clave", clave.trim()).apply()
+            .putString("url", normalizarUrl(url)).putString("clave", clave.trim()).apply()
     }
 
     /** Llama a una función de la API (POST /rest/v1/rpc/<funcion>) y devuelve el JSON. */

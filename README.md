@@ -25,8 +25,8 @@ así dos técnicos nunca reciben la misma.
 2. La primera vez se abre **⚙ Servidor**: pegá la URL y la clave pública.
 3. Ingresá con tu usuario y contraseña.
 
-> Opcional: para generar un APK que ya traiga el servidor configurado, agregá en `local.properties`
-> `supabase.url=https://xxxx.supabase.co` y `supabase.key=...` y compilá.
+> El APK ya trae la URL del proyecto (`supabase.url` en `gradle.properties`). Para que también traiga la clave
+> pública, agregá `supabase.key=...` en ese archivo (o en `local.properties`) y compilá.
 
 ### Seguridad
 - Las tablas están en el esquema privado `cip`, que **no** se expone por la API. La clave pública sólo permite
