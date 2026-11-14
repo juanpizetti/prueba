@@ -1,16 +1,25 @@
 package ar.escusub.controlips
 
 import android.content.Context
+import org.json.JSONObject
 
+/** Token de sesión del servidor y datos del usuario logueado. */
 object Session {
     private const val PREFS = "session"
-    private const val KEY_ID = "user_id"
 
-    fun guardar(ctx: Context, id: Long) =
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_ID, id).apply()
+    fun guardar(ctx: Context, token: String, usuario: Tecnico) =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("token", token).putString("usuario", usuario.toJson()).apply()
 
-    fun idActual(ctx: Context): Long =
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_ID, -1)
+    fun actualizarUsuario(ctx: Context, usuario: Tecnico) =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("usuario", usuario.toJson()).apply()
+
+    fun token(ctx: Context): String? =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("token", null)
+
+    fun usuario(ctx: Context): Tecnico? =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("usuario", null)
+            ?.let { runCatching { Api.tecnico(JSONObject(it)) }.getOrNull() }
 
     fun cerrar(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()

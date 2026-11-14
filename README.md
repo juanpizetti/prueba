@@ -3,13 +3,38 @@
 
 # Control IPs – ESCUSUB TIC (Android)
 
-App Android **100 % local** (sin internet ni servidor) para registrar PCs con su **IP** y **MAC**.
-Los datos se guardan en una base SQLite dentro del celular, con la misma estructura que `database/control_ips.sql`.
+App Android para registrar PCs con su **IP** y **MAC**, con **base de datos en línea** (Supabase / PostgreSQL)
+compartida por todos los celulares. Requiere conexión: la IP la asigna el servidor en el momento,
+así dos técnicos nunca reciben la misma.
 
-## Instalar
-1. Copiá `apk/ControlIPs.apk` al celular.
-2. Abrilo y aceptá "Instalar apps de origen desconocido".
-3. Ingresá con los usuarios de la base original (`admin`, `PIZETTI`, `GOMEZ`) y **las mismas contraseñas** que usaban en el sistema web (los hashes bcrypt se importaron tal cual).
+## Puesta en marcha (una sola vez)
+
+### 1. Crear la base en Supabase
+1. Entrá a <https://supabase.com>, creá una cuenta y un **New project** (plan gratuito).
+   Anotá la contraseña de la base y elegí la región más cercana (São Paulo).
+2. En el proyecto: **SQL Editor → New query**, pegá **todo** el contenido de
+   [`supabase/schema.sql`](supabase/schema.sql) y tocá **Run**.
+   Crea las tablas, las 3 redes y los usuarios `admin`, `PIZETTI` y `GOMEZ` con **las mismas contraseñas** del sistema anterior.
+   (Se puede volver a ejecutar para actualizar: no borra datos.)
+3. En **Project Settings → API** (o *Connect*) copiá:
+   - **Project URL** (`https://xxxx.supabase.co`)
+   - **Clave pública**: `anon public` o `publishable` (`sb_publishable_…`). **Nunca** la `service_role` / `secret`.
+
+### 2. Instalar la app
+1. Copiá `apk/ControlIPs.apk` al celular e instalalo (permitir "orígenes desconocidos").
+2. La primera vez se abre **⚙ Servidor**: pegá la URL y la clave pública.
+3. Ingresá con tu usuario y contraseña.
+
+> Opcional: para generar un APK que ya traiga el servidor configurado, agregá en `local.properties`
+> `supabase.url=https://xxxx.supabase.co` y `supabase.key=...` y compilá.
+
+### Seguridad
+- Las tablas están en el esquema privado `cip`, que **no** se expone por la API. La clave pública sólo permite
+  llamar a las funciones de la app, que verifican la sesión y el rol (admin/técnico) en cada operación.
+- Contraseñas guardadas con bcrypt; las sesiones vencen a los 30 días.
+- IP y MAC únicas a nivel base de datos; la asignación automática usa un bloqueo para que dos celulares
+  simultáneos nunca reciban la misma IP.
+- Los datos se pueden ver/editar desde Supabase → **Table Editor** → esquema `cip`.
 
 ## Funciones
 | | Administrador | Técnico |
@@ -23,6 +48,7 @@ Los datos se guardan en una base SQLite dentro del celular, con la misma estruct
 | Editar / eliminar | Todos | Sólo los suyos pendientes |
 | Crear usuarios, cambiar rol, restablecer contraseña, eliminar | ✔ | ✘ |
 | Exportar CSV (Excel) | ✔ | ✘ |
+| Deslizar hacia abajo para actualizar la lista | ✔ | ✔ |
 | Cambiar su propia contraseña | ✔ | ✔ |
 
 - **Redes**: cada PC se carga en una red y recibe la primera IP libre de esa red (se saltean dirección de red, gateway y broadcast). El formulario muestra de antemano la IP que va a recibir y, al guardar, un cartel informa **la IP asignada**, red, máscara y gateway (con botón para copiar la IP). Si se borra un equipo, su IP vuelve a quedar libre. El admin puede desactivar el interruptor y escribir una IP a mano (debe pertenecer a la red elegida). Redes iniciales:
@@ -43,5 +69,7 @@ Los datos se guardan en una base SQLite dentro del celular, con la misma estruct
 Requiere JDK 17+ y Android SDK 35.
 ```
 ./gradlew assembleRelease     # APK en app/build/outputs/apk/release/
-./gradlew testDebugUnitTest   # pruebas: validación IP/MAC, contraseñas y apertura de pantallas (Robolectric)
+./gradlew testDebugUnitTest   # pruebas
 ```
+Las pruebas de punta a punta (`OnlineTest`) levantan la app con Robolectric contra un PostgreSQL local
+(`postgres`/`test`, base `controlips_test`) con `supabase/schema.sql` cargado; si no hay PostgreSQL se omiten.

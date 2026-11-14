@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -11,8 +13,17 @@ android {
         applicationId = "ar.escusub.controlips"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "2.0"
+
+        // Opcional: dejar el servidor preconfigurado en el APK.
+        // En local.properties o gradle.properties: supabase.url=https://xxxx.supabase.co  y  supabase.key=...
+        val props = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        fun prop(k: String) = (props.getProperty(k) ?: (project.findProperty(k) as String?) ?: "").trim()
+        buildConfigField("String", "SUPABASE_URL", "\"${prop("supabase.url")}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${prop("supabase.key")}\"")
     }
 
     buildTypes {
@@ -33,6 +44,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -51,8 +63,10 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("org.mindrot:jbcrypt:0.4")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation("org.postgresql:postgresql:42.7.4")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

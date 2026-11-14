@@ -1,21 +1,18 @@
 package ar.escusub.controlips
 
-import android.database.sqlite.SQLiteConstraintException
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import ar.escusub.controlips.databinding.ActivityUsersBinding
 import ar.escusub.controlips.databinding.DialogUserBinding
 import ar.escusub.controlips.databinding.ItemUserBinding
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class UsersActivity : BaseActivity() {
 
@@ -37,7 +34,7 @@ class UsersActivity : BaseActivity() {
         cargar()
     }
 
-    private fun cargar() { adapter.items = db.tecnicos() }
+    private fun cargar() = conServidor { adapter.items = Api.lista(rpc("tecnicos_listar"), Api::tecnico) }
 
     private fun nuevoUsuario() {
         val v = DialogUserBinding.inflate(layoutInflater)
@@ -48,19 +45,15 @@ class UsersActivity : BaseActivity() {
                 val nombre = v.etNombre.text.toString().trim()
                 val usuario = v.etUsuario.text.toString().trim()
                 val pass = v.etPass.text.toString()
-                val rol = if (v.rbAdmin.isChecked) Tecnico.ROL_ADMIN else Tecnico.ROL_TECNICO
                 when {
                     nombre.isEmpty() -> v.etNombre.error = "Obligatorio"
                     usuario.isEmpty() || usuario.contains(' ') -> v.etUsuario.error = "Obligatorio, sin espacios"
-                    db.existeUsuario(usuario) -> v.etUsuario.error = "Ese usuario ya existe"
                     pass.length < 4 -> v.etPass.error = "Mínimo 4 caracteres"
-                    else -> lifecycleScope.launch {
-                        val res = withContext(Dispatchers.Default) {
-                            try { db.crearTecnico(usuario, Passwords.hash(pass), nombre, rol); null }
-                            catch (e: SQLiteConstraintException) { "Ese usuario ya existe" }
-                        }
-                        if (res != null) v.etUsuario.error = res
-                        else { dlg.dismiss(); cargar(); Toast.makeText(this@UsersActivity, "Usuario creado", Toast.LENGTH_SHORT).show() }
+                    else -> conServidor {
+                        rpc("tecnico_crear", "p_usuario" to usuario, "p_password" to pass, "p_nombre" to nombre,
+                            "p_rol" to if (v.rbAdmin.isChecked) Tecnico.ROL_ADMIN else Tecnico.ROL_TECNICO)
+                        dlg.dismiss(); cargar()
+                        Toast.makeText(this, "Usuario creado", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -69,11 +62,13 @@ class UsersActivity : BaseActivity() {
     }
 
     private fun opciones(t: Tecnico) {
-        val acciones = mutableListOf("Restablecer contraseña")
-        acciones += if (t.esAdmin) "Cambiar a Técnico" else "Cambiar a Administrador"
-        acciones += "Eliminar usuario"
+        val acciones = arrayOf(
+            "Restablecer contraseña",
+            if (t.esAdmin) "Cambiar a Técnico" else "Cambiar a Administrador",
+            "Eliminar usuario",
+        )
         dialogo().setTitle("${t.nombreCompleto} (${t.usuario})")
-            .setItems(acciones.toTypedArray()) { _, which ->
+            .setItems(acciones) { _, which ->
                 when (which) {
                     0 -> resetPassword(t)
                     1 -> cambiarRol(t)
@@ -85,34 +80,29 @@ class UsersActivity : BaseActivity() {
     private fun resetPassword(t: Tecnico) {
         val et = TextInputEditText(this).apply {
             hint = "Nueva contraseña (mín. 4)"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         val pad = (24 * resources.displayMetrics.density).toInt()
-        val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 3, pad, 0); addView(et) }
+        val box = FrameLayout(this).apply { setPadding(pad, pad / 3, pad, 0); addView(et) }
         dialogo().setTitle("Contraseña de ${t.usuario}").setView(box)
             .setPositiveButton("Guardar") { _, _ ->
-                val p = et.text.toString()
-                if (p.length < 4) { aviso("Error", "Mínimo 4 caracteres."); return@setPositiveButton }
-                lifecycleScope.launch {
-                    withContext(Dispatchers.Default) { db.cambiarPassword(t.id, Passwords.hash(p)) }
-                    Toast.makeText(this@UsersActivity, "Contraseña actualizada", Toast.LENGTH_SHORT).show()
+                conServidor {
+                    rpc("tecnico_password", "p_id" to t.id, "p_password" to et.text.toString())
+                    Toast.makeText(this, "Contraseña actualizada", Toast.LENGTH_SHORT).show()
                 }
             }.setNegativeButton("Cancelar", null).show()
     }
 
-    private fun cambiarRol(t: Tecnico) {
-        if (t.esAdmin && db.cantidadAdmins() <= 1) { aviso("No permitido", "Debe quedar al menos un administrador."); return }
-        db.cambiarRol(t.id, if (t.esAdmin) Tecnico.ROL_TECNICO else Tecnico.ROL_ADMIN)
-        if (t.id == yo.id) { finish(); return } // el propio admin dejó de serlo
+    private fun cambiarRol(t: Tecnico) = conServidor {
+        rpc("tecnico_rol", "p_id" to t.id, "p_rol" to if (t.esAdmin) Tecnico.ROL_TECNICO else Tecnico.ROL_ADMIN)
+        if (t.id == yo.id) { finish(); return@conServidor } // el propio admin dejó de serlo
         cargar()
     }
 
     private fun eliminar(t: Tecnico) {
-        if (t.id == yo.id) { aviso("No permitido", "No podés eliminar tu propio usuario."); return }
-        if (t.esAdmin && db.cantidadAdmins() <= 1) { aviso("No permitido", "Debe quedar al menos un administrador."); return }
         dialogo().setTitle("Eliminar usuario")
             .setMessage("¿Eliminar a ${t.nombreCompleto}? Los equipos que cargó se conservan.")
-            .setPositiveButton("Eliminar") { _, _ -> db.eliminarTecnico(t.id); cargar() }
+            .setPositiveButton("Eliminar") { _, _ -> conServidor { rpc("tecnico_eliminar", "p_id" to t.id); cargar() } }
             .setNegativeButton("Cancelar", null).show()
     }
 

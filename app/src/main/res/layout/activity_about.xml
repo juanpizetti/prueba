@@ -96,7 +96,14 @@
 
                     <TextView
                         style="@style/AboutText"
-                        android:text="Control IPs es la herramienta del Sector TICOM para registrar las PC de la ESCUSUB con su dirección IP y MAC, asignar IPs automáticamente en cada red y llevar el control de qué equipos están habilitados.\n\nFunciona 100 % en el celular, sin internet: los datos se guardan en una base local." />
+                        android:text="Control IPs es la herramienta del Sector TICOM para registrar las PC de la ESCUSUB con su dirección IP y MAC, asignar IPs automáticamente en cada red y llevar el control de qué equipos están habilitados.\n\nLos datos se guardan en una base de datos en línea compartida: todos los técnicos ven la misma información y el servidor garantiza que ninguna IP ni MAC se repita." />
+
+                    <TextView
+                        android:id="@+id/tvServidor"
+                        style="@style/AboutText"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

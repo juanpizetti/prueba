@@ -1,9 +1,7 @@
 package ar.escusub.controlips
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LogicTest {
@@ -25,15 +23,5 @@ class LogicTest {
         assertEquals(esperado, Validators.normalizarMac("AABBCCDDEE0F"))
         assertNull(Validators.normalizarMac("AA:BB:CC:DD:EE"))
         assertNull(Validators.normalizarMac("GG:BB:CC:DD:EE:FF"))
-    }
-
-    @Test fun passwordCompatibleConPhp() {
-        val h = Passwords.hash("secreta")
-        assertTrue(Passwords.verificar("secreta", h))
-        assertFalse(Passwords.verificar("otra", h))
-        // Mismo hash con prefijo de PHP password_hash()
-        val php = "\$2y\$" + h.substring(4)
-        assertTrue(Passwords.verificar("secreta", php))
-        assertFalse(Passwords.verificar("x", "basura"))
     }
 }
