@@ -14,6 +14,8 @@ Los datos se guardan en una base SQLite dentro del celular, con la misma estruct
 | | Administrador | Técnico |
 |---|---|---|
 | Cargar PC (queda en **ROJO / pendiente**) | ✔ | ✔ |
+| IP asignada **automáticamente** y avisada al guardar | ✔ (o manual) | ✔ |
+| Configurar el rango de IPs automáticas | ✔ | ✘ |
 | Ver equipos | Todos | Sólo los que cargó |
 | Activar equipo (pasa a **VERDE**) / desactivar | ✔ | ✘ |
 | Editar / eliminar | Todos | Sólo los suyos pendientes |
@@ -21,6 +23,7 @@ Los datos se guardan en una base SQLite dentro del celular, con la misma estruct
 | Exportar CSV (Excel) | ✔ | ✘ |
 | Cambiar su propia contraseña | ✔ | ✔ |
 
+- **IP automática**: al cargar una PC se le asigna la primera IP libre del rango configurado (por defecto `192.168.1.10 – 192.168.1.250`, se cambia en *menú → Rango de IPs automáticas*). El formulario muestra de antemano la IP que va a recibir y, al guardar, un cartel informa **la IP asignada** (con botón para copiarla). Si se borra un equipo, su IP vuelve a quedar libre. El admin puede desactivar el interruptor y escribir una IP a mano.
 - **IP y MAC no se pueden repetir**: se validan antes de guardar (indicando qué equipo ya la usa) y además la base tiene índices `UNIQUE`.
 - La MAC se acepta como `AA:BB:CC:DD:EE:FF`, `AA-BB-…`, `AABB.CCDD.EEFF` o `AABBCCDDEEFF` y se guarda normalizada, así no se "cuelan" duplicados escritos distinto. La IP se normaliza (`192.168.001.010` → `192.168.1.10`).
 - Búsqueda por nombre, IP, MAC, oficina o correo y filtros Todos / Pendientes / Activos.

@@ -126,6 +126,7 @@ class MainActivity : BaseActivity() {
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         menu.findItem(R.id.action_users).isVisible = yo.esAdmin
         menu.findItem(R.id.action_export).isVisible = yo.esAdmin
+        menu.findItem(R.id.action_rango).isVisible = yo.esAdmin
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -133,6 +134,7 @@ class MainActivity : BaseActivity() {
         when (item.itemId) {
             R.id.action_users -> startActivity(Intent(this, UsersActivity::class.java))
             R.id.action_export -> exportarCsv()
+            R.id.action_rango -> configurarRango()
             R.id.action_password -> cambiarPassword()
             R.id.action_logout -> {
                 Session.cerrar(this)
@@ -142,6 +144,53 @@ class MainActivity : BaseActivity() {
             else -> return super.onOptionsItemSelected(item)
         }
         return true
+    }
+
+    private fun configurarRango() {
+        val (ini, fin) = db.rangoIp()
+        val pad = (24 * resources.displayMetrics.density).toInt()
+        fun campo(hint: String, valor: String) = com.google.android.material.textfield.TextInputLayout(this).apply {
+            this.hint = hint
+            addView(com.google.android.material.textfield.TextInputEditText(context).apply {
+                setText(valor)
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.")
+            })
+        }
+        val tilIni = campo("IP inicial", ini)
+        val tilFin = campo("IP final", fin)
+        val info = android.widget.TextView(this).apply {
+            text = "Las PC nuevas reciben automáticamente la primera IP libre de este rango.\n" +
+                "Libres ahora: ${db.ipsLibres()} · Próxima: ${db.siguienteIpLibre() ?: "ninguna"}"
+            setPadding(0, pad / 2, 0, 0)
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 3, pad, 0)
+            addView(tilIni); addView(tilFin); addView(info)
+        }
+        val dlg = dialogo().setTitle("Rango de IPs automáticas").setView(box)
+            .setPositiveButton("Guardar", null).setNegativeButton("Cancelar", null).create()
+        dlg.setOnShowListener {
+            dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                tilIni.error = null; tilFin.error = null
+                val a = Validators.normalizarIp(tilIni.editText!!.text.toString())
+                val z = Validators.normalizarIp(tilFin.editText!!.text.toString())
+                when {
+                    a == null -> tilIni.error = "IP inválida"
+                    z == null -> tilFin.error = "IP inválida"
+                    Validators.ipALong(a) > Validators.ipALong(z) -> tilFin.error = "Debe ser mayor o igual a la inicial"
+                    Validators.ipALong(z) - Validators.ipALong(a) + 1 > DbHelper.RANGO_MAX ->
+                        tilFin.error = "Rango demasiado grande (máx. ${DbHelper.RANGO_MAX} direcciones)"
+                    else -> {
+                        db.guardarRangoIp(a, z)
+                        dlg.dismiss()
+                        aviso("Rango guardado", "Rango: $a – $z\nIPs libres: ${db.ipsLibres()}\nPróxima a asignar: ${db.siguienteIpLibre() ?: "ninguna (rango completo)"}")
+                    }
+                }
+            }
+        }
+        dlg.show()
     }
 
     private fun cambiarPassword() {

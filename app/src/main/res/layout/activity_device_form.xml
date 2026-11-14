@@ -41,13 +41,21 @@
                     android:maxLength="100" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/swAutoIp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:checked="true"
+                android:text="Asignar IP automáticamente" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilIp"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="Dirección IP *  (ej: 192.168.1.10)">
+                android:hint="Dirección IP">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etIp"

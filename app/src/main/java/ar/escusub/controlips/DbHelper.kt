@@ -11,12 +11,20 @@ import android.database.sqlite.SQLiteOpenHelper
  * con el agregado del campo `estado` (pendiente = rojo / activo = verde).
  */
 class DbHelper private constructor(ctx: Context) :
-    SQLiteOpenHelper(ctx.applicationContext, "control_ips.db", null, 1) {
+    SQLiteOpenHelper(ctx.applicationContext, "control_ips.db", null, 2) {
 
     companion object {
+        const val IP_INICIO_DEF = "192.168.1.10"
+        const val IP_FIN_DEF = "192.168.1.250"
+        /** Máximo de direcciones en el rango (equivale a una red /16). */
+        const val RANGO_MAX = 65536L
+
         @Volatile private var instance: DbHelper? = null
         fun get(ctx: Context): DbHelper =
             instance ?: synchronized(this) { instance ?: DbHelper(ctx).also { instance = it } }
+
+        /** Sólo para pruebas: descarta la instancia compartida. */
+        internal fun reiniciar() = synchronized(this) { instance?.close(); instance = null }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -54,6 +62,7 @@ class DbHelper private constructor(ctx: Context) :
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX idx_disp_tecnico ON dispositivos(tecnico_id)")
+        crearConfig(db)
 
         // Usuarios importados de control_ips.sql (mismas contraseñas que en el sistema web).
         val seed = listOf(
@@ -69,7 +78,57 @@ class DbHelper private constructor(ctx: Context) :
         }
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) crearConfig(db)
+    }
+
+    /** v2: configuración del rango de IPs automáticas. */
+    private fun crearConfig(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS config (clave TEXT PRIMARY KEY, valor TEXT NOT NULL)")
+        db.execSQL("INSERT OR IGNORE INTO config VALUES ('ip_inicio', '$IP_INICIO_DEF'), ('ip_fin', '$IP_FIN_DEF')")
+    }
+
+    // ---------------------------------------------------------- Rango de IPs
+
+    private fun config(clave: String): String? =
+        readableDatabase.rawQuery("SELECT valor FROM config WHERE clave = ?", arrayOf(clave)).use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+
+    /** (inicio, fin) del rango de IPs que se asignan automáticamente. */
+    fun rangoIp(): Pair<String, String> =
+        (config("ip_inicio") ?: IP_INICIO_DEF) to (config("ip_fin") ?: IP_FIN_DEF)
+
+    fun guardarRangoIp(inicio: String, fin: String) {
+        writableDatabase.execSQL("INSERT OR REPLACE INTO config VALUES ('ip_inicio', ?), ('ip_fin', ?)", arrayOf(inicio, fin))
+    }
+
+    private fun ipsUsadas(): Set<String> =
+        readableDatabase.rawQuery("SELECT direccion_ip FROM dispositivos", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(0)) }
+        }
+
+    /** Primera IP libre del rango, o null si el rango está completo. */
+    fun siguienteIpLibre(): String? {
+        val (ini, fin) = rangoIp()
+        val usadas = ipsUsadas()
+        var v = Validators.ipALong(ini)
+        val end = Validators.ipALong(fin)
+        while (v <= end) {
+            val ip = Validators.longAIp(v)
+            if (ip !in usadas) return ip
+            v++
+        }
+        return null
+    }
+
+    /** Cantidad de IPs libres en el rango. */
+    fun ipsLibres(): Int {
+        val (ini, fin) = rangoIp()
+        val a = Validators.ipALong(ini); val b = Validators.ipALong(fin)
+        val ocupadas = ipsUsadas().count { Validators.ipALong(it) in a..b }
+        return (b - a + 1).toInt() - ocupadas
+    }
 
     // ------------------------------------------------------------------ Técnicos
 

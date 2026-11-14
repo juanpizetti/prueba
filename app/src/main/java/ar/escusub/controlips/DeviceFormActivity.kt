@@ -1,9 +1,12 @@
 package ar.escusub.controlips
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.database.sqlite.SQLiteConstraintException
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.Toast
 import androidx.core.widget.doAfterTextChanged
 import ar.escusub.controlips.databinding.ActivityDeviceFormBinding
 
@@ -41,6 +44,14 @@ class DeviceFormActivity : BaseActivity() {
             b.tvAviso.visibility = View.GONE
         }
 
+        // IP automática:
+        //  - Alta: siempre automática para el técnico; el admin puede pasar a manual.
+        //  - Edición: se conserva la IP; sólo el admin puede cambiarla (manual o pidiendo una nueva automática).
+        b.swAutoIp.visibility = if (yo.esAdmin) View.VISIBLE else View.GONE
+        b.swAutoIp.isChecked = e == null
+        b.swAutoIp.setOnCheckedChangeListener { _, _ -> refrescarIp() }
+        refrescarIp()
+
         // Limpia errores al escribir
         listOf(b.etNombre to b.tilNombre, b.etIp to b.tilIp, b.etMac to b.tilMac,
             b.etOficina to b.tilOficina, b.etCorreo to b.tilCorreo).forEach { (et, til) ->
@@ -50,18 +61,54 @@ class DeviceFormActivity : BaseActivity() {
         b.btnGuardar.setOnClickListener { guardar() }
     }
 
+    private val ipAutomatica get() = b.swAutoIp.isChecked
+
+    /** Muestra la IP que se va a asignar (o habilita la edición manual). */
+    private fun refrescarIp() {
+        val e = editando
+        b.tilIp.error = null
+        when {
+            ipAutomatica -> {
+                val (ini, fin) = db.rangoIp()
+                val libre = db.siguienteIpLibre()
+                b.etIp.isEnabled = false
+                b.etIp.setText(libre ?: "")
+                b.tilIp.hint = "IP que se asignará"
+                b.tilIp.helperText = if (libre != null) "Automática · rango $ini – $fin · ${db.ipsLibres()} libres" else null
+                if (libre == null) b.tilIp.error = "No quedan IPs libres en el rango $ini – $fin. " +
+                    if (yo.esAdmin) "Ampliá el rango desde el menú." else "Pedile al administrador que lo amplíe."
+            }
+            e != null && !yo.esAdmin -> {
+                b.etIp.isEnabled = false
+                b.etIp.setText(e.direccionIp)
+                b.tilIp.hint = "IP asignada"
+                b.tilIp.helperText = "Sólo el administrador puede cambiar la IP"
+            }
+            else -> {
+                b.etIp.isEnabled = true
+                if (e != null) b.etIp.setText(e.direccionIp) else b.etIp.setText("")
+                b.tilIp.hint = "Dirección IP (manual)"
+                b.tilIp.helperText = "Ej: 192.168.1.10"
+            }
+        }
+    }
+
     private fun guardar() {
         val nombre = b.etNombre.text.toString().trim()
-        val ipRaw = b.etIp.text.toString()
         val macRaw = b.etMac.text.toString()
         val oficina = b.etOficina.text.toString().trim()
         val correo = b.etCorreo.text.toString().trim()
         val tipo = b.etTipo.text.toString().ifBlank { Dispositivo.TIPOS[0] }
 
+        // La IP automática se recalcula al guardar, por si cambió algo mientras se completaba el formulario.
+        val ip = if (ipAutomatica) db.siguienteIpLibre() else Validators.normalizarIp(b.etIp.text.toString())
+
         var ok = true
         if (nombre.isEmpty()) { b.tilNombre.error = "Obligatorio"; ok = false }
-        val ip = Validators.normalizarIp(ipRaw)
-        if (ip == null) { b.tilIp.error = "IP inválida (formato 0-255.0-255.0-255.0-255)"; ok = false }
+        if (ip == null) {
+            if (ipAutomatica) refrescarIp() else b.tilIp.error = "IP inválida (formato 0-255.0-255.0-255.0-255)"
+            ok = false
+        }
         val mac = Validators.normalizarMac(macRaw)
         if (mac == null) { b.tilMac.error = "MAC inválida (12 dígitos hexadecimales)"; ok = false }
         if (oficina.isEmpty()) { b.tilOficina.error = "Obligatorio"; ok = false }
@@ -91,6 +138,25 @@ class DeviceFormActivity : BaseActivity() {
             aviso("Duplicado", "La IP o la MAC ya están registradas en otro equipo.")
             return
         }
-        finish()
+
+        if (editando != null && editando?.direccionIp == ip) { finish(); return }
+        mostrarIpAsignada(d)
+    }
+
+    /** Informa la IP asignada antes de cerrar el formulario. */
+    private fun mostrarIpAsignada(d: Dispositivo) {
+        val titulo = if (editando == null) "PC registrada" else "IP actualizada"
+        val estado = if (editando == null) "\n\nQueda en ROJO (pendiente) hasta que el administrador la active." else ""
+        dialogo().setTitle(titulo)
+            .setMessage("Equipo: ${d.nombreEquipo}\n\nIP asignada:  ${d.direccionIp}\nMAC:  ${d.direccionMac}$estado")
+            .setCancelable(false)
+            .setNeutralButton("Copiar IP") { _, _ ->
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager)
+                    .setPrimaryClip(ClipData.newPlainText("IP", d.direccionIp))
+                Toast.makeText(this, "IP ${d.direccionIp} copiada", Toast.LENGTH_SHORT).show()
+            }
+            .setPositiveButton("Aceptar", null)
+            .setOnDismissListener { finish() }
+            .show()
     }
 }
