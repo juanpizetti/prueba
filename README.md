@@ -22,11 +22,11 @@ así dos técnicos nunca reciben la misma.
 
 ### 2. Instalar la app
 1. Copiá `apk/ControlIPs.apk` al celular e instalalo (permitir "orígenes desconocidos").
-2. La primera vez se abre **⚙ Servidor**: pegá la URL y la clave pública.
-3. Ingresá con tu usuario y contraseña.
+2. Ingresá con tu usuario y contraseña.
 
-> El APK ya trae la URL del proyecto (`supabase.url` en `gradle.properties`). Para que también traiga la clave
-> pública, agregá `supabase.key=...` en ese archivo (o en `local.properties`) y compilá.
+> El APK de `apk/` ya trae la URL y la clave pública del proyecto: los técnicos sólo instalan e ingresan.
+> Para compilarlo así: `supabase.url` está en `gradle.properties` y la clave va en `local.properties`
+> (`supabase.key=sb_publishable_...`, no se sube al repositorio). El botón ⚙ Servidor permite cambiarlas.
 
 ### Seguridad
 - Las tablas están en el esquema privado `cip`, que **no** se expone por la API. La clave pública sólo permite

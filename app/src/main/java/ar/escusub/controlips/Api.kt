@@ -86,6 +86,8 @@ object Api {
     private fun traducir(msg: String) = when {
         msg.contains("Invalid API key", true) || msg.contains("No API key", true) ->
             "La clave del servidor no es válida. Revisá la configuración."
+        msg.contains("Invalid path specified", true) || msg.contains("requested path is invalid", true) ->
+            "La dirección del servidor no es correcta. Debe ser sólo https://xxxx.supabase.co (⚙ Servidor)."
         msg.contains("Could not find the function", true) ->
             "El servidor no tiene la base instalada. Ejecutá supabase/schema.sql en Supabase."
         else -> msg
