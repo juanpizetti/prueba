@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta tomada del logo ESCUSUB -->
+    <color name="navy">#120E3D</color>
+    <color name="navy_dark">#0A0826</color>
+    <color name="green_logo">#0C4D3B</color>
+    <color name="sky">#3FA9F5</color>
+    <color name="gold">#FFC107</color>
+    <color name="white">#FFFFFF</color>
+    <color name="bg">#F3F5F9</color>
+    <color name="text_secondary">#5B6170</color>
+
+    <!-- Estados -->
+    <color name="estado_pendiente">#D32F2F</color>
+    <color name="estado_pendiente_bg">#FDECEC</color>
+    <color name="estado_activo">#2E7D32</color>
+    <color name="estado_activo_bg">#E8F5E9</color>
+</resources>
