@@ -30,5 +30,5 @@ Los datos se guardan en una base SQLite dentro del celular, con la misma estruct
 Requiere JDK 17+ y Android SDK 35.
 ```
 ./gradlew assembleRelease     # APK en app/build/outputs/apk/release/
-./gradlew testReleaseUnitTest # pruebas de validación IP/MAC y contraseñas
+./gradlew testDebugUnitTest   # pruebas: validación IP/MAC, contraseñas y apertura de pantallas (Robolectric)
 ```
