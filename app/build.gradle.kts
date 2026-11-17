@@ -13,8 +13,8 @@ android {
         applicationId = "ar.escusub.controlips"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.0"
+        versionCode = 5
+        versionName = "2.1"
 
         // Opcional: dejar el servidor preconfigurado en el APK.
         // En local.properties o gradle.properties: supabase.url=https://xxxx.supabase.co  y  supabase.key=...

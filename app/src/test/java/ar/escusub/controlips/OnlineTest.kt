@@ -79,6 +79,10 @@ class OnlineTest {
         et.onItemClickListener.onItemClick(null, null, pos, 0)
     }
 
+    private fun automatica(a: DeviceFormActivity) {
+        a.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.swAutoIp).isChecked = true
+    }
+
     private fun completar(a: DeviceFormActivity, nombre: String, mac: String) {
         a.texto(R.id.etNombre, nombre)
         a.texto(R.id.etMac, mac)
@@ -110,6 +114,8 @@ class OnlineTest {
         login("PIZETTI")
         val a = formulario()
         val etIp = a.findViewById<EditText>(R.id.etIp)
+        assertTrue("por defecto la IP se escribe a mano", etIp.isEnabled)
+        automatica(a)
         esperar("vista previa Red Principal") { etIp.text.toString() == "172.21.88.2" }
         assertTrue(!etIp.isEnabled)
         elegirRed(a, 2) // Wifi
@@ -128,6 +134,7 @@ class OnlineTest {
 
         // La siguiente PC recibe la IP siguiente.
         val b = formulario()
+        automatica(b)
         elegirRed(b, 2)
         completar(b, "PC-02", "aa-bb-cc-dd-ee-02")
         b.findViewById<View>(R.id.btnGuardar).performClick()
@@ -137,21 +144,61 @@ class OnlineTest {
     @Test fun macRepetidaConOtroFormatoSeRechaza() {
         login("PIZETTI")
         val a = formulario()
+        automatica(a)
         completar(a, "PC-01", "aa-bb-cc-dd-ee-ff")
         a.findViewById<View>(R.id.btnGuardar).performClick()
         esperarDialogo("IP asignada").dismiss()
 
         val b = formulario()
+        automatica(b)
         completar(b, "PC-02", "AABB.CCDD.EEFF")
         b.findViewById<View>(R.id.btnGuardar).performClick()
         esperarDialogo("La MAC AA:BB:CC:DD:EE:FF ya está asignada al equipo \"PC-01\"")
         assertEquals("1", srv.consulta("select count(*) from cip.dispositivos"))
     }
 
+    @Test fun tecnicoCargaIpManualYPuedeVolverAAutomatica() {
+        login("PIZETTI")
+        val a = formulario()
+        val etIp = a.findViewById<EditText>(R.id.etIp)
+        val til = a.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.tilIp)
+        esperar("sugerencia de IP libre") { til.helperText?.contains("primera libre: 172.21.88.2") == true }
+
+        // Sin IP escrita no guarda.
+        completar(a, "PC-M1", "00:00:00:00:0a:01")
+        a.findViewById<View>(R.id.btnGuardar).performClick()
+        assertTrue(til.error.toString(), til.error!!.contains("Escribí la IP"))
+
+        // Manual dentro de la red: se respeta.
+        a.texto(R.id.etIp, "172.21.89.100")
+        a.findViewById<View>(R.id.btnGuardar).performClick()
+        esperarDialogo("IP asignada:  172.21.89.100").dismiss()
+        assertEquals("6", srv.consulta("select tecnico_id from cip.dispositivos where host(direccion_ip) = '172.21.89.100'"))
+
+        // Manual con una IP ya usada: el servidor la rechaza.
+        val b = formulario()
+        completar(b, "PC-M2", "00:00:00:00:0a:02")
+        b.texto(R.id.etIp, "172.21.89.100")
+        b.findViewById<View>(R.id.btnGuardar).performClick()
+        esperarDialogo("La IP 172.21.89.100 ya está asignada al equipo \"PC-M1\"")
+
+        // Alternar a automática y volver conserva lo escrito.
+        b.texto(R.id.etIp, "172.21.89.101")
+        automatica(b)
+        esperar("vista previa automática") { b.findViewById<EditText>(R.id.etIp).text.toString() == "172.21.88.2" }
+        b.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.swAutoIp).isChecked = false
+        assertEquals("172.21.89.101", b.findViewById<EditText>(R.id.etIp).text.toString())
+
+        // Automática: toma la primera libre.
+        automatica(b)
+        b.findViewById<View>(R.id.btnGuardar).performClick()
+        esperarDialogo("IP asignada:  172.21.88.2")
+        assertTrue(etIp.isEnabled)
+    }
+
     @Test fun adminIpManualFueraDeLaRedSeRechaza() {
         login("admin")
         val a = formulario()
-        a.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.swAutoIp).isChecked = false
         elegirRed(a, 1) // DMZ
         a.texto(R.id.etIp, "192.168.66.20")
         completar(a, "SRV", "11:22:33:44:55:66")
@@ -166,6 +213,7 @@ class OnlineTest {
     @Test fun adminVeTodoYActivaEnVerde() {
         login("PIZETTI")
         val f = formulario()
+        automatica(f)
         completar(f, "PC-TEC", "00:00:00:00:00:01")
         f.findViewById<View>(R.id.btnGuardar).performClick()
         esperarDialogo("IP asignada").dismiss()

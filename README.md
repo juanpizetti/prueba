@@ -40,7 +40,7 @@ así dos técnicos nunca reciben la misma.
 | | Administrador | Técnico |
 |---|---|---|
 | Cargar PC (queda en **ROJO / pendiente**) | ✔ | ✔ |
-| IP asignada **automáticamente** según la red elegida, avisada al guardar | ✔ (o manual) | ✔ |
+| IP **manual** (por defecto) o **automática** (primera libre de la red), avisada al guardar | ✔ | ✔ |
 | Configurar redes (alta, rango a asignar, baja) | ✔ | ✘ |
 | Pantalla *Acerca de* | ✔ | ✔ |
 | Ver equipos | Todos | Sólo los que cargó |
@@ -51,7 +51,7 @@ así dos técnicos nunca reciben la misma.
 | Deslizar hacia abajo para actualizar la lista | ✔ | ✔ |
 | Cambiar su propia contraseña | ✔ | ✔ |
 
-- **Redes**: cada PC se carga en una red y recibe la primera IP libre de esa red (se saltean dirección de red, gateway y broadcast). El formulario muestra de antemano la IP que va a recibir y, al guardar, un cartel informa **la IP asignada**, red, máscara y gateway (con botón para copiar la IP). Si se borra un equipo, su IP vuelve a quedar libre. El admin puede desactivar el interruptor y escribir una IP a mano (debe pertenecer a la red elegida). Redes iniciales:
+- **Redes**: cada PC se carga en una red y recibe la primera IP libre de esa red (se saltean dirección de red, gateway y broadcast). Por defecto la IP se **escribe a mano** (debe pertenecer a la red elegida y no estar usada); debajo se sugiere la primera IP libre. Con el interruptor **"Asignar automáticamente"** el servidor asigna la primera IP libre de la red. Al guardar, un cartel informa **la IP asignada**, red, máscara y gateway (con botón para copiar la IP). Si se borra un equipo, su IP vuelve a quedar libre. Redes iniciales:
 
   | Red | Subred | Máscara | Gateway | Asigna | IPs |
   |---|---|---|---|---|---|

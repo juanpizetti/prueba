@@ -44,11 +44,11 @@ class DeviceFormActivity : BaseActivity() {
             b.tvAviso.visibility = View.GONE
         }
 
-        // IP automática:
-        //  - Alta: siempre automática para el técnico; el admin puede pasar a manual.
-        //  - Edición: se conserva la IP; sólo el admin puede cambiarla.
-        b.swAutoIp.visibility = if (yo.esAdmin) View.VISIBLE else View.GONE
-        b.swAutoIp.isChecked = e == null
+        // IP: por defecto se escribe a mano; el interruptor pasa a "automática"
+        // (el servidor asigna la primera IP libre de la red al guardar).
+        // Al editar, el técnico conserva la IP; sólo el admin puede cambiarla.
+        b.swAutoIp.visibility = if (e != null && !yo.esAdmin) View.GONE else View.VISIBLE
+        b.swAutoIp.isChecked = false
         b.swAutoIp.setOnCheckedChangeListener { _, _ -> refrescarIp() }
         // El técnico no puede cambiar la red (ni la IP) de un equipo ya cargado.
         if (e != null && !yo.esAdmin) b.tilRed.isEnabled = false
@@ -76,11 +76,14 @@ class DeviceFormActivity : BaseActivity() {
     }
 
     private val ipAutomatica get() = b.swAutoIp.isChecked
+    /** Lo escrito a mano, para no perderlo al alternar entre manual y automática. */
+    private var ipTipeada: String? = null
     private val sinCambioDeIp get() = editando != null && !yo.esAdmin
 
     /** Muestra la IP que se va a asignar (consultando al servidor) o habilita la edición manual. */
     private fun refrescarIp() {
         val e = editando
+        if (b.etIp.isEnabled) ipTipeada = b.etIp.text.toString()
         b.tilIp.error = null
         previa?.cancel()
         when {
@@ -108,10 +111,19 @@ class DeviceFormActivity : BaseActivity() {
                 }
             }
             else -> {
+                val r = red
                 b.etIp.isEnabled = true
-                b.etIp.setText(e?.direccionIp ?: "")
-                b.tilIp.hint = "Dirección IP (manual)"
-                b.tilIp.helperText = red?.let { "Debe pertenecer a ${it.cidr} (gateway ${it.gateway})" } ?: "Elegí una red"
+                b.etIp.setText(ipTipeada ?: e?.direccionIp ?: "")
+                b.tilIp.hint = "Dirección IP *"
+                if (r == null) { b.tilIp.helperText = "Elegí una red"; return }
+                b.tilIp.helperText = "Debe pertenecer a ${r.cidr} (gateway ${r.gateway})"
+                // Sugerencia: la primera IP libre de la red (se puede usar activando "automática").
+                previa = conServidor {
+                    val p = rpc("vista_previa_ip", "p_red_id" to r.id) as JSONObject
+                    if (!b.etIp.isEnabled) return@conServidor
+                    b.tilIp.helperText = "Debe pertenecer a ${r.cidr} (gateway ${r.gateway}) · " +
+                        (if (p.isNull("ip")) "no quedan IPs libres" else "primera libre: ${p.getString("ip")} · ${p.getInt("libres")} libres")
+                }
             }
         }
     }
@@ -127,7 +139,10 @@ class DeviceFormActivity : BaseActivity() {
         var ok = true
         if (nombre.isEmpty()) { b.tilNombre.error = "Obligatorio"; ok = false }
         if (red == null && !sinCambioDeIp) { b.tilRed.error = "Elegí la red"; ok = false }
-        if (!sinCambioDeIp && !ipAutomatica && ipManual == null) { b.tilIp.error = "IP inválida (formato 0-255.0-255.0-255.0-255)"; ok = false }
+        if (!sinCambioDeIp && !ipAutomatica && ipManual == null) {
+            b.tilIp.error = if (b.etIp.text.isNullOrBlank()) "Escribí la IP o activá \"automática\"" else "IP inválida (formato 0-255.0-255.0-255.0-255)"
+            ok = false
+        }
         if (mac == null) { b.tilMac.error = "MAC inválida (12 dígitos hexadecimales)"; ok = false }
         if (oficina.isEmpty()) { b.tilOficina.error = "Obligatorio"; ok = false }
         if (!Validators.correoValido(correo)) { b.tilCorreo.error = "Correo inválido"; ok = false }

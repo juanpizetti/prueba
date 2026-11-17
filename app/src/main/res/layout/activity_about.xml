@@ -120,7 +120,7 @@
 
                     <TextView
                         style="@style/AboutText"
-                        android:text="• Asignación automática de IP por red, informando la IP asignada.\n• IP y MAC únicas: nunca se repiten.\n• Técnicos cargan equipos que quedan en ROJO (pendientes).\n• El administrador los activa y pasan a VERDE.\n• Gestión de usuarios, redes y exportación a CSV." />
+                        android:text="• IP manual o automática (primera libre de la red), informando la IP asignada.\n• IP y MAC únicas: nunca se repiten.\n• Técnicos cargan equipos que quedan en ROJO (pendientes).\n• El administrador los activa y pasan a VERDE.\n• Gestión de usuarios, redes y exportación a CSV." />
 
                     <LinearLayout
                         android:layout_width="match_parent"

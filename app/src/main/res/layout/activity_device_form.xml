@@ -62,8 +62,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:checked="true"
-                android:text="Asignar IP automáticamente" />
+                android:checked="false"
+                android:text="Asignar automáticamente (primera IP libre de la red)" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilIp"
