@@ -26,11 +26,29 @@ android {
         buildConfigField("String", "SUPABASE_KEY", "\"${prop("supabase.key")}\"")
     }
 
+    // Firma fija de la app: todas las versiones deben firmarse con la misma clave para que
+    // se instalen encima de la anterior. La clave NO está en el repositorio: va en
+    // keystore.properties + firma/controlips-firma.p12 (ver README, sección "Firma").
+    val firma = rootProject.file("keystore.properties").takeIf { it.exists() }?.let { f ->
+        Properties().apply { f.inputStream().use { load(it) } }
+    }
+    signingConfigs {
+        if (firma != null) create("release") {
+            storeFile = rootProject.file(firma.getProperty("storeFile"))
+            storePassword = firma.getProperty("storePassword")
+            keyAlias = firma.getProperty("keyAlias")
+            keyPassword = firma.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Firmado con la clave de debug para poder instalar el APK directamente en el celular.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (firma != null) signingConfigs.getByName("release") else {
+                logger.warn("ATENCIÓN: falta keystore.properties; el APK se firma con la clave de debug " +
+                    "y NO se podrá instalar encima de las versiones publicadas.")
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

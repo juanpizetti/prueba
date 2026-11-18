@@ -72,5 +72,15 @@ Requiere JDK 17+ y Android SDK 35.
 ./gradlew assembleRelease     # APK en app/build/outputs/apk/release/
 ./gradlew testDebugUnitTest   # pruebas
 ```
+### Firma (actualizaciones)
+Todas las versiones se firman con la **misma clave** para que se instalen encima de la anterior sin desinstalar.
+La clave **no está en el repositorio** (quien la tenga puede publicar "actualizaciones" de la app). Hacen falta dos archivos
+en la raíz del proyecto, que guarda el responsable de TICOM:
+- `firma/controlips-firma.p12`
+- `keystore.properties` (ruta, alias y contraseña)
+
+Si faltan, el APK se firma con una clave de prueba y **no** se instala encima de las versiones publicadas.
+Huella SHA-256 del certificado: `2E:B8:8F:05:13:D2:BE:A1:69:77:D5:E1:18:5D:8D:DF:E0:0B:0D:9E:1B:51:12:92:6A:D1:C3:2F:A1:42:21:E5`
+
 Las pruebas de punta a punta (`OnlineTest`) levantan la app con Robolectric contra un PostgreSQL local
 (`postgres`/`test`, base `controlips_test`) con `supabase/schema.sql` cargado; si no hay PostgreSQL se omiten.
