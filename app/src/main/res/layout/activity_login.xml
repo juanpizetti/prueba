@@ -14,6 +14,7 @@
         android:padding="24dp">
 
         <ImageView
+            android:id="@+id/ivLogo"
             android:layout_width="190dp"
             android:layout_height="190dp"
             android:layout_marginTop="16dp"
@@ -109,6 +110,7 @@
 
         <TextView
             android:id="@+id/tvServidor"
+            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
@@ -118,6 +120,7 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnServidor"
             style="@style/Widget.Material3.Button.TextButton"
+            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⚙ Servidor"

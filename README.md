@@ -26,7 +26,8 @@ así dos técnicos nunca reciben la misma.
 
 > El APK de `apk/` ya trae la URL y la clave pública del proyecto: los técnicos sólo instalan e ingresan.
 > Para compilarlo así: `supabase.url` está en `gradle.properties` y la clave va en `local.properties`
-> (`supabase.key=sb_publishable_...`, no se sube al repositorio). El botón ⚙ Servidor permite cambiarlas.
+> (`supabase.key=sb_publishable_...`, no se sube al repositorio).
+> Una vez configurado, la app no muestra los datos del servidor. Para cambiarlos: **tocar 7 veces seguidas el logo** de la pantalla de ingreso.
 
 ### Seguridad
 - Las tablas están en el esquema privado `cip`, que **no** se expone por la API. La clave pública sólo permite

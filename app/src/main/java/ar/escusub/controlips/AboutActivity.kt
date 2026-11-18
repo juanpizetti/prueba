@@ -33,6 +33,5 @@ class AboutActivity : BaseActivity() {
                 }
             }
         }
-        b.tvServidor.text = if (Api.configurado(this)) "Base de datos en línea: ${Api.url(this)}" else "Servidor sin configurar"
     }
 }

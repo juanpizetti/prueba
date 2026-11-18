@@ -102,6 +102,24 @@ class OnlineTest {
         assertEquals("JUAN PIZETTI", Session.usuario(ctx)!!.nombreCompleto)
     }
 
+    @Test fun datosDelServidorOcultosUnaVezConfigurado() {
+        val a = Robolectric.buildActivity(LoginActivity::class.java).setup().get()
+        assertEquals(View.GONE, a.findViewById<View>(R.id.btnServidor).visibility)
+        assertEquals(View.GONE, a.findViewById<View>(R.id.tvServidor).visibility)
+        assertEquals(null, ShadowDialog.getLatestDialog())
+        // Acceso oculto: 7 toques en el logo abren la configuración, con la clave enmascarada.
+        val logo = a.findViewById<View>(R.id.ivLogo)
+        repeat(7) { logo.performClick() }
+        shadowOf(Looper.getMainLooper()).idle()
+        val dlg = ShadowDialog.getLatestDialog() as AlertDialog
+        assertTrue(dlg.isShowing)
+        val campos = mutableListOf<EditText>()
+        fun buscar(v: View) { if (v is EditText) campos += v; if (v is android.view.ViewGroup) for (i in 0 until v.childCount) buscar(v.getChildAt(i)) }
+        buscar(dlg.window!!.decorView)
+        val clave = campos.first { it.text.toString() == PgRestFalso.CLAVE }
+        assertTrue(clave.inputType and android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD != 0)
+    }
+
     @Test fun loginIncorrectoMuestraError() {
         val a = Robolectric.buildActivity(LoginActivity::class.java).setup().get()
         a.texto(R.id.etUser, "admin")

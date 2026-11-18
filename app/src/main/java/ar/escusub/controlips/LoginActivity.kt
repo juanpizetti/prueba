@@ -15,6 +15,8 @@ import org.json.JSONObject
 class LoginActivity : BaseActivity() {
 
     private lateinit var b: ActivityLoginBinding
+    private var toquesLogo = 0
+    private var ultimoToque = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,14 +32,23 @@ class LoginActivity : BaseActivity() {
         }
         b.btnAbout.setOnClickListener { startActivity(Intent(this, AboutActivity::class.java)) }
         b.btnServidor.setOnClickListener { configurarServidor() }
+        // Acceso oculto para cambiar el servidor: tocar el logo 7 veces seguidas.
+        b.ivLogo.setOnClickListener {
+            val ahora = System.currentTimeMillis()
+            toquesLogo = if (ahora - ultimoToque < 800) toquesLogo + 1 else 1
+            ultimoToque = ahora
+            if (toquesLogo >= 7) { toquesLogo = 0; configurarServidor() }
+        }
         mostrarServidor()
         if (!Api.configurado(this)) configurarServidor()
     }
 
+    /** Los datos del servidor sólo se muestran mientras no esté configurado (primera vez). */
     private fun mostrarServidor() {
-        b.tvServidor.text = if (Api.configurado(this))
-            "Servidor: " + Api.url(this).removePrefix("https://").removePrefix("http://")
-        else "Servidor sin configurar"
+        val falta = !Api.configurado(this)
+        b.tvServidor.visibility = if (falta) View.VISIBLE else View.GONE
+        b.btnServidor.visibility = if (falta) View.VISIBLE else View.GONE
+        b.tvServidor.text = "Servidor sin configurar"
     }
 
     private fun ingresar() {
@@ -64,9 +75,13 @@ class LoginActivity : BaseActivity() {
             })
         }
         val tilUrl = campo("URL del proyecto (https://xxxx.supabase.co)", Api.url(this))
-        val tilKey = campo("Clave pública (anon / publishable)", Api.clave(this))
+        val tilKey = campo("Clave pública (anon / publishable)", Api.clave(this)).apply {
+            // La clave queda oculta (con el ojito para verla si hace falta).
+            editText!!.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
+        }
         val info = TextView(this).apply {
-            text = "Se obtienen en Supabase → Project Settings → API. Pedíselos al administrador."
+            text = "Se configura una sola vez. Se obtienen en Supabase → Project Settings → API."
             setPadding(0, pad / 2, 0, 0)
         }
         val box = LinearLayout(this).apply {
