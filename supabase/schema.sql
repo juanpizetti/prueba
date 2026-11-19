@@ -61,10 +61,25 @@ create table if not exists cip.sesiones (
   expira     timestamptz not null default now() + interval '30 days'
 );
 
+-- Registro de actividad (auditoría). Sólo se agrega: no hay función para borrarlo.
+create table if not exists cip.log (
+  id          bigserial primary key,
+  fecha       timestamptz not null default now(),
+  tecnico_id  bigint references cip.tecnicos (id) on delete set null,
+  usuario     text,            -- copia del usuario (queda aunque se elimine)
+  nombre      text,
+  accion      text not null,
+  detalle     text,
+  ip_origen   text,            -- IP pública desde donde se conectó
+  dispositivo text             -- celular / versión de la app
+);
+create index if not exists log_fecha_idx on cip.log (fecha desc, id desc);
+
 alter table cip.tecnicos     enable row level security;
 alter table cip.redes        enable row level security;
 alter table cip.dispositivos enable row level security;
 alter table cip.sesiones     enable row level security;
+alter table cip.log          enable row level security;
 
 -- ------------------------------------------------------- Datos iniciales
 
@@ -175,6 +190,23 @@ language sql stable as $$
   where d.id = p_id
 $$;
 
+-- Agrega una línea al registro, con la IP y el celular de la petición actual
+-- (Supabase/PostgREST deja los encabezados HTTP en request.headers).
+create or replace function cip.registrar(p_tecnico_id bigint, p_usuario text, p_accion text, p_detalle text) returns void
+language plpgsql security definer set search_path = cip, extensions, public as $$
+declare h json; v_ip text;
+begin
+  begin h := nullif(current_setting('request.headers', true), '')::json;
+  exception when others then h := null;
+  end;
+  v_ip := coalesce(h->>'cf-connecting-ip', h->>'x-real-ip', nullif(trim(split_part(h->>'x-forwarded-for', ',', 1)), ''));
+  insert into cip.log (tecnico_id, usuario, nombre, accion, detalle, ip_origen, dispositivo)
+  values (p_tecnico_id,
+          coalesce(p_usuario, (select usuario from cip.tecnicos where id = p_tecnico_id)),
+          (select nombre_completo from cip.tecnicos where id = p_tecnico_id),
+          p_accion, p_detalle, v_ip, left(h->>'x-dispositivo', 200));
+end $$;
+
 -- ============================================================ API pública
 -- Todas devuelven JSON. Errores: excepción con mensaje legible.
 
@@ -187,18 +219,25 @@ begin
   delete from cip.sesiones where expira < now();
   select * into u from cip.tecnicos where lower(usuario) = lower(trim(p_usuario));
   if not found or u.password <> crypt(p_password, u.password) then
+    -- Se devuelve el error (sin excepción) para que el intento quede registrado.
+    perform cip.registrar(u.id, left(trim(p_usuario), 50), 'LOGIN_FALLIDO',
+                          case when u.id is null then 'Usuario inexistente' else 'Contraseña incorrecta' end);
     perform pg_sleep(0.5);  -- frena intentos por fuerza bruta
-    raise exception 'Usuario o contraseña incorrectos.';
+    return json_build_object('error', 'Usuario o contraseña incorrectos.');
   end if;
   insert into cip.sesiones (tecnico_id) values (u.id) returning token into v_token;
+  perform cip.registrar(u.id, u.usuario, 'LOGIN', 'Ingresó (' || case u.rol when 'admin' then 'administrador' else 'técnico' end || ')');
   return json_build_object('token', v_token, 'usuario', cip.tecnico_json(u));
 end $$;
 
 create or replace function public.logout(p_token uuid) returns json
-language sql security definer set search_path = cip, extensions, public as $$
-  delete from cip.sesiones where token = p_token;
-  select 'true'::json;
-$$;
+language plpgsql security definer set search_path = cip, extensions, public as $$
+declare v_id bigint;
+begin
+  delete from cip.sesiones where token = p_token returning tecnico_id into v_id;
+  if v_id is not null then perform cip.registrar(v_id, null, 'LOGOUT', 'Cerró sesión'); end if;
+  return 'true'::json;
+end $$;
 
 create or replace function public.yo(p_token uuid) returns json
 language sql stable security definer set search_path = cip, extensions, public as $$
@@ -212,6 +251,7 @@ begin
   if u.password <> crypt(p_actual, u.password) then raise exception 'La contraseña actual no es correcta.'; end if;
   if length(coalesce(p_nueva, '')) < 4 then raise exception 'La nueva contraseña debe tener al menos 4 caracteres.'; end if;
   update cip.tecnicos set password = crypt(p_nueva, gen_salt('bf', 10)) where id = u.id;
+  perform cip.registrar(u.id, u.usuario, 'PASSWORD_PROPIA', 'Cambió su contraseña');
   return 'true'::json;
 end $$;
 
@@ -232,9 +272,8 @@ create or replace function public.red_guardar(
   p_token uuid, p_id bigint, p_nombre text, p_gateway text, p_prefijo int, p_ip_inicio text, p_ip_fin text
 ) returns json
 language plpgsql security definer set search_path = cip, extensions, public as $$
-declare r cip.redes; n cidr; v_gw inet;
+declare u cip.tecnicos := cip.admin(p_token); r cip.redes; n cidr; v_gw inet;
 begin
-  perform cip.admin(p_token);
   if coalesce(trim(p_nombre), '') = '' then raise exception 'El nombre de la red es obligatorio.'; end if;
   if p_prefijo is null or p_prefijo not between 16 and 30 then raise exception 'El prefijo debe estar entre 16 y 30.'; end if;
   begin v_gw := host(p_gateway::inet)::inet; exception when others then raise exception 'Gateway inválido.'; end;
@@ -264,17 +303,21 @@ begin
     end if;
   exception when unique_violation then raise exception 'Ya existe una red con ese nombre.';
   end;
+  perform cip.registrar(u.id, u.usuario, case when p_id is null then 'RED_ALTA' else 'RED_EDICION' end,
+    format('%s %s · gateway %s · asigna %s – %s', r.nombre, cip.subred(r), host(r.gateway), host(r.ip_inicio), host(r.ip_fin)));
   return (cip.red_json(r)::jsonb || jsonb_build_object('libres', cip.libres(r), 'proxima', host(cip.proxima_ip(r))))::json;
 end $$;
 
 create or replace function public.red_eliminar(p_token uuid, p_id bigint) returns json
 language plpgsql security definer set search_path = cip, extensions, public as $$
-declare n int;
+declare u cip.tecnicos := cip.admin(p_token); n int; r cip.redes;
 begin
-  perform cip.admin(p_token);
   select count(*) into n from cip.dispositivos where red_id = p_id;
   if n > 0 then raise exception 'La red tiene % equipo(s) cargado(s). Movelos o eliminalos primero.', n; end if;
-  delete from cip.redes where id = p_id;
+  delete from cip.redes where id = p_id returning * into r;
+  if r.id is not null then
+    perform cip.registrar(u.id, u.usuario, 'RED_ELIMINADA', format('%s %s', r.nombre, cip.subred(r)));
+  end if;
   return 'true'::json;
 end $$;
 
@@ -390,6 +433,18 @@ begin
   exception when unique_violation then
     raise exception 'La IP o la MAC ya están registradas en otro equipo.';
   end;
+
+  if p_id is null then
+    perform cip.registrar(u.id, u.usuario, 'PC_ALTA', format('%s · IP %s (%s) · MAC %s · %s · %s',
+      trim(p_nombre), host(v_ip), case when coalesce(trim(p_ip), '') = '' then 'automática' else 'manual' end,
+      upper(v_mac::text), coalesce((select nombre from cip.redes where id = v_red), 'sin red'), trim(p_oficina)));
+  else
+    perform cip.registrar(u.id, u.usuario, 'PC_EDICION', concat_ws(' · ', trim(p_nombre),
+      case when d.direccion_ip <> v_ip then format('IP %s → %s', host(d.direccion_ip), host(v_ip)) else 'IP ' || host(v_ip) end,
+      case when d.direccion_mac <> v_mac then format('MAC %s → %s', upper(d.direccion_mac::text), upper(v_mac::text)) end,
+      case when d.nombre_equipo <> trim(p_nombre) then format('nombre antes: %s', d.nombre_equipo) end,
+      case when d.oficina <> trim(p_oficina) then format('oficina %s → %s', d.oficina, trim(p_oficina)) end));
+  end if;
   return cip.dispositivo_json(v_id);
 end $$;
 
@@ -403,6 +458,9 @@ begin
          fecha_activacion = case when p_activo then now() end
    where id = p_id;
   if not found then raise exception 'El equipo ya no existe.'; end if;
+  perform cip.registrar(u.id, u.usuario, case when p_activo then 'PC_ACTIVADA' else 'PC_DESACTIVADA' end,
+    (select format('%s · IP %s · MAC %s', nombre_equipo, host(direccion_ip), upper(direccion_mac::text))
+       from cip.dispositivos where id = p_id));
   return cip.dispositivo_json(p_id);
 end $$;
 
@@ -416,6 +474,9 @@ begin
     raise exception 'Sólo el administrador puede eliminar este equipo.' using errcode = 'PT403';
   end if;
   delete from cip.dispositivos where id = p_id;
+  perform cip.registrar(u.id, u.usuario, 'PC_ELIMINADA', format('%s · IP %s · MAC %s · %s (cargada por %s, %s)',
+    d.nombre_equipo, host(d.direccion_ip), upper(d.direccion_mac::text), d.oficina,
+    coalesce((select usuario from cip.tecnicos where id = d.tecnico_id), '—'), d.estado));
   return 'true'::json;
 end $$;
 
@@ -430,9 +491,8 @@ end $$;
 
 create or replace function public.tecnico_crear(p_token uuid, p_usuario text, p_password text, p_nombre text, p_rol text) returns json
 language plpgsql security definer set search_path = cip, extensions, public as $$
-declare t cip.tecnicos;
+declare u cip.tecnicos := cip.admin(p_token); t cip.tecnicos;
 begin
-  perform cip.admin(p_token);
   if coalesce(trim(p_nombre), '') = '' then raise exception 'El nombre es obligatorio.'; end if;
   if coalesce(trim(p_usuario), '') = '' or trim(p_usuario) ~ '\s' then raise exception 'Usuario obligatorio y sin espacios.'; end if;
   if length(coalesce(p_password, '')) < 4 then raise exception 'La contraseña debe tener al menos 4 caracteres.'; end if;
@@ -442,29 +502,36 @@ begin
     values (trim(p_usuario), crypt(p_password, gen_salt('bf', 10)), trim(p_nombre), p_rol) returning * into t;
   exception when unique_violation then raise exception 'El usuario "%" ya existe.', trim(p_usuario);
   end;
+  perform cip.registrar(u.id, u.usuario, 'USUARIO_ALTA', format('Creó a %s (%s) como %s', t.usuario, t.nombre_completo, t.rol));
   return cip.tecnico_json(t);
 end $$;
 
 create or replace function public.tecnico_password(p_token uuid, p_id bigint, p_password text) returns json
 language plpgsql security definer set search_path = cip, extensions, public as $$
+declare u cip.tecnicos := cip.admin(p_token);
 begin
-  perform cip.admin(p_token);
   if length(coalesce(p_password, '')) < 4 then raise exception 'La contraseña debe tener al menos 4 caracteres.'; end if;
   update cip.tecnicos set password = crypt(p_password, gen_salt('bf', 10)) where id = p_id;
   delete from cip.sesiones where tecnico_id = p_id and token <> p_token;  -- cierra sus otras sesiones
+  perform cip.registrar(u.id, u.usuario, 'USUARIO_PASSWORD',
+    format('Restableció la contraseña de %s', (select usuario from cip.tecnicos where id = p_id)));
   return 'true'::json;
 end $$;
 
 create or replace function public.tecnico_rol(p_token uuid, p_id bigint, p_rol text) returns json
 language plpgsql security definer set search_path = cip, extensions, public as $$
+declare u cip.tecnicos := cip.admin(p_token); t cip.tecnicos;
 begin
-  perform cip.admin(p_token);
   if p_rol not in ('admin', 'tecnico') then raise exception 'Rol inválido.'; end if;
   if p_rol = 'tecnico' and (select rol from cip.tecnicos where id = p_id) = 'admin'
      and (select count(*) from cip.tecnicos where rol = 'admin') <= 1 then
     raise exception 'Debe quedar al menos un administrador.';
   end if;
+  select * into t from cip.tecnicos where id = p_id;
   update cip.tecnicos set rol = p_rol where id = p_id;
+  if t.id is not null and t.rol <> p_rol then
+    perform cip.registrar(u.id, u.usuario, 'USUARIO_ROL', format('%s: %s → %s', t.usuario, t.rol, p_rol));
+  end if;
   return 'true'::json;
 end $$;
 
@@ -477,8 +544,39 @@ begin
      and (select count(*) from cip.tecnicos where rol = 'admin') <= 1 then
     raise exception 'Debe quedar al menos un administrador.';
   end if;
+  perform cip.registrar(u.id, u.usuario, 'USUARIO_ELIMINADO',
+    (select format('Eliminó a %s (%s, %s)', usuario, nombre_completo, rol) from cip.tecnicos where id = p_id));
   delete from cip.tecnicos where id = p_id;
   return 'true'::json;
+end $$;
+
+-- ------------------------------------------------------ Registro (log)
+
+-- Sólo el administrador. Página de hasta p_limite registros anteriores a p_antes_id (null = los más nuevos).
+-- p_categoria: null | 'ingresos' | 'pcs' | 'usuarios' | 'redes'
+create or replace function public.log_listar(
+  p_token uuid, p_busqueda text, p_categoria text, p_antes_id bigint, p_limite int
+) returns json
+language plpgsql stable security definer set search_path = cip, extensions, public as $$
+declare q text := '%' || coalesce(trim(p_busqueda), '') || '%';
+begin
+  perform cip.admin(p_token);
+  return coalesce((
+    select json_agg(json_build_object(
+             'id', l.id, 'fecha', to_char(l.fecha at time zone 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI:SS'),
+             'usuario', l.usuario, 'nombre', l.nombre, 'accion', l.accion, 'detalle', l.detalle,
+             'ip_origen', l.ip_origen, 'dispositivo', l.dispositivo) order by l.id desc)
+      from (select * from cip.log l
+             where (p_antes_id is null or l.id < p_antes_id)
+               and (p_categoria is null
+                    or (p_categoria = 'ingresos' and l.accion in ('LOGIN', 'LOGIN_FALLIDO', 'LOGOUT'))
+                    or (p_categoria = 'pcs'      and l.accion like 'PC\_%')
+                    or (p_categoria = 'usuarios' and (l.accion like 'USUARIO\_%' or l.accion = 'PASSWORD_PROPIA'))
+                    or (p_categoria = 'redes'    and l.accion like 'RED\_%'))
+               and (coalesce(l.usuario, '') ilike q or coalesce(l.nombre, '') ilike q or coalesce(l.detalle, '') ilike q
+                    or coalesce(l.ip_origen, '') ilike q or coalesce(l.dispositivo, '') ilike q or l.accion ilike q)
+             order by l.id desc
+             limit least(greatest(coalesce(p_limite, 50), 1), 200)) l), '[]'::json);
 end $$;
 
 -- ------------------------------------------------------------- Permisos
@@ -496,7 +594,8 @@ begin
     'dispositivo_guardar(uuid,bigint,text,text,text,text,text,bigint,text)',
     'dispositivo_estado(uuid,bigint,boolean)', 'dispositivo_eliminar(uuid,bigint)',
     'tecnicos_listar(uuid)', 'tecnico_crear(uuid,text,text,text,text)', 'tecnico_password(uuid,bigint,text)',
-    'tecnico_rol(uuid,bigint,text)', 'tecnico_eliminar(uuid,bigint)'
+    'tecnico_rol(uuid,bigint,text)', 'tecnico_eliminar(uuid,bigint)',
+    'log_listar(uuid,text,text,bigint,integer)'
   ] loop
     execute format('revoke all on function public.%s from public', f);
     if exists (select 1 from pg_roles where rolname = 'anon') then

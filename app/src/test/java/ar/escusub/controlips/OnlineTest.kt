@@ -282,6 +282,54 @@ class OnlineTest {
         esperarDialogo("La clave del servidor no es válida")
     }
 
+    @Test fun registroDeActividadSoloParaAdmin() {
+        // Intento fallido + técnico que carga y elimina una PC.
+        val l = Robolectric.buildActivity(LoginActivity::class.java).setup().get()
+        l.texto(R.id.etUser, "PIZETTI"); l.texto(R.id.etPass, "mala")
+        l.findViewById<View>(R.id.btnLogin).performClick()
+        esperarDialogo("Usuario o contraseña incorrectos")
+        login("PIZETTI")
+        val f = formulario()
+        completar(f, "PC-LOG", "00:00:00:00:0b:01")
+        f.texto(R.id.etIp, "172.21.88.77")
+        f.findViewById<View>(R.id.btnGuardar).performClick()
+        esperarDialogo("IP asignada:  172.21.88.77").dismiss()
+        runBlocking {
+            val id = srv.consulta("select id from cip.dispositivos")!!.toLong()
+            Api.rpc(ctx, "dispositivo_eliminar", mapOf("p_token" to Session.token(ctx), "p_id" to id))
+        }
+
+        // El técnico no puede ver el registro.
+        val t = Robolectric.buildActivity(LogActivity::class.java).setup().get()
+        assertTrue(t.isFinishing)
+        val e = runCatching { runBlocking {
+            Api.rpc(ctx, "log_listar", mapOf("p_token" to Session.token(ctx), "p_busqueda" to "", "p_categoria" to null, "p_antes_id" to null, "p_limite" to 50))
+        } }.exceptionOrNull()
+        assertTrue(e is ApiException && e.status == 403)
+
+        // El admin lo ve, con usuario, acción, detalle, IP de origen y celular.
+        login("admin")
+        val a = Robolectric.buildActivity(LogActivity::class.java).setup().get()
+        val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+        esperar("registros cargados") { (rv.adapter?.itemCount ?: 0) >= 5 }
+        rv.measure(View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(5000, View.MeasureSpec.EXACTLY))
+        rv.layout(0, 0, 1080, 5000)
+        val textos = (0 until rv.childCount).map { i ->
+            val v = rv.getChildAt(i)
+            listOf(R.id.tvAccion, R.id.tvUsuario, R.id.tvDetalle, R.id.tvOrigen).joinToString(" | ") { v.findViewById<TextView>(it).text }
+        }
+        val todo = textos.joinToString("\n")
+        assertTrue(todo, textos[0].startsWith("Ingreso | admin"))   // lo más nuevo primero
+        assertTrue(todo, textos.any { it.startsWith("PC eliminada | PIZETTI (JUAN PIZETTI) | PC-LOG · IP 172.21.88.77") })
+        assertTrue(todo, textos.any { it.startsWith("PC cargada | PIZETTI") && it.contains("(manual)") && it.contains("MAC 00:00:00:00:0B:01") })
+        assertTrue(todo, textos.any { it.startsWith("Ingreso fallido | PIZETTI") && it.contains("Contraseña incorrecta") })
+        assertTrue(todo, textos.all { it.contains("Desde IP ${PgRestFalso.IP_CLIENTE}") && it.contains("Android") && it.contains("app ${BuildConfig.VERSION_NAME}") })
+
+        // Filtro "Ingresos".
+        a.findViewById<com.google.android.material.chip.ChipGroup>(R.id.chips).check(R.id.chipIngresos)
+        esperar("filtro ingresos") { rv.adapter?.itemCount == 3 }
+    }
+
     @Test fun acercaDeMuestraLasRedes() {
         login("admin")
         val a = Robolectric.buildActivity(AboutActivity::class.java).setup().get()

@@ -63,6 +63,8 @@ object Api {
                 if (key.startsWith("eyJ")) con.setRequestProperty("Authorization", "Bearer $key")
                 con.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 con.setRequestProperty("Accept", "application/json")
+                // Para el registro de actividad: desde qué celular y versión de la app.
+                con.setRequestProperty("x-dispositivo", dispositivo)
                 con.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
                 val code = con.responseCode
@@ -74,13 +76,25 @@ object Api {
                     val status = if (code == 401 && !msg.startsWith("Sesión")) 400 else code
                     throw ApiException(status, traducir(msg))
                 }
-                if (text.isBlank()) null else JSONTokener(text).nextValue()
+                val r = if (text.isBlank()) null else JSONTokener(text).nextValue()
+                // Algunas funciones (ej. login fallido) devuelven {"error": "..."} para poder registrar el intento.
+                if (r is JSONObject && r.length() == 1 && r.has("error")) throw ApiException(400, r.getString("error"))
+                r
             } catch (e: IOException) {
                 throw ApiException(0, "Sin conexión con el servidor. Revisá internet e intentá de nuevo.")
             } finally {
                 con.disconnect()
             }
         }
+
+    /** "Samsung SM-A515F - Android 13 - app 2.3" (sólo ASCII, apto para encabezado HTTP). */
+    val dispositivo: String by lazy {
+        val marca = android.os.Build.MANUFACTURER.orEmpty().replaceFirstChar { it.uppercase() }
+        val modelo = android.os.Build.MODEL.orEmpty()
+        val nombre = if (modelo.startsWith(marca, ignoreCase = true)) modelo else "$marca $modelo"
+        "$nombre - Android ${android.os.Build.VERSION.RELEASE} - app ${BuildConfig.VERSION_NAME}"
+            .map { if (it.code in 32..126) it else '?' }.joinToString("").trim().take(200)
+    }
 
     /** Mensajes de Supabase/PostgREST más comunes, en castellano. */
     private fun traducir(msg: String) = when {

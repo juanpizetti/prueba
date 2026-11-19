@@ -176,6 +176,7 @@ class MainActivity : BaseActivity() {
         menu.findItem(R.id.action_users).isVisible = yo.esAdmin
         menu.findItem(R.id.action_export).isVisible = yo.esAdmin
         menu.findItem(R.id.action_redes).isVisible = yo.esAdmin
+        menu.findItem(R.id.action_log).isVisible = yo.esAdmin
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -184,6 +185,7 @@ class MainActivity : BaseActivity() {
             R.id.action_users -> startActivity(Intent(this, UsersActivity::class.java))
             R.id.action_export -> exportarCsv()
             R.id.action_redes -> gestionarRedes()
+            R.id.action_log -> startActivity(Intent(this, LogActivity::class.java))
             R.id.action_about -> startActivity(Intent(this, AboutActivity::class.java))
             R.id.action_password -> cambiarPassword()
             R.id.action_logout -> {

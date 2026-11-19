@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item android:id="@+id/action_users" android:title="Usuarios" app:showAsAction="never" />
     <item android:id="@+id/action_redes" android:title="Redes" app:showAsAction="never" />
+    <item android:id="@+id/action_log" android:title="Registro de actividad" app:showAsAction="never" />
     <item android:id="@+id/action_export" android:title="Exportar CSV" app:showAsAction="never" />
     <item android:id="@+id/action_password" android:title="Cambiar mi contraseña" app:showAsAction="never" />
     <item android:id="@+id/action_about" android:title="Acerca de" app:showAsAction="never" />

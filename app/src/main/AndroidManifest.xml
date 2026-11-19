@@ -26,6 +26,7 @@
             android:windowSoftInputMode="adjustResize" />
         <activity android:name=".UsersActivity" />
         <activity android:name=".AboutActivity" />
+        <activity android:name=".LogActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

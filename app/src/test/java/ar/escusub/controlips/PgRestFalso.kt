@@ -19,6 +19,7 @@ class PgRestFalso : AutoCloseable {
     companion object {
         const val JDBC = "jdbc:postgresql://127.0.0.1:5432/controlips_test"
         const val CLAVE = "clave-de-prueba-0123456789"
+        const val IP_CLIENTE = "203.0.113.7"
 
         fun disponible(): Boolean = runCatching {
             Class.forName("org.postgresql.Driver")
@@ -43,7 +44,12 @@ class PgRestFalso : AutoCloseable {
                 val (code, body) = synchronized(this@PgRestFalso) {
                     llamadas++
                     if (request.getHeader("apikey") != CLAVE) 401 to """{"message":"Invalid API key"}"""
-                    else ejecutar(request.path!!.substringAfterLast('/'), JSONObject(request.body.readUtf8()))
+                    else ejecutar(request.path!!.substringAfterLast('/'), JSONObject(request.body.readUtf8()),
+                        // Como PostgREST: los encabezados quedan en request.headers (en minúsculas).
+                        JSONObject().apply {
+                            request.headers.forEach { (k, v) -> put(k.lowercase(), v) }
+                            put("x-forwarded-for", IP_CLIENTE)
+                        }.toString())
                 }
                 return MockResponse().setResponseCode(code).setHeader("Content-Type", "application/json").setBody(body)
             }
@@ -51,22 +57,27 @@ class PgRestFalso : AutoCloseable {
         server.start(java.net.InetAddress.getByName("127.0.0.1"), 0)
     }
 
-    private fun ejecutar(fn: String, params: JSONObject): Pair<Int, String> {
+    private fun ejecutar(fn: String, params: JSONObject, headers: String): Pair<Int, String> {
         require(fn.matches(Regex("[a-z_]+")))
         val keys = params.keys().asSequence().toList()
         val sql = "select public.$fn(${keys.joinToString { "$it := ?" }})::text"
+        db.autoCommit = false
         return try {
+            db.prepareStatement("select set_config('request.headers', ?, true)").use { it.setString(1, headers); it.execute() }
             db.prepareStatement(sql).use { ps ->
                 keys.forEachIndexed { i, k ->
                     val v = params.get(k)
                     if (v == JSONObject.NULL) ps.setNull(i + 1, Types.OTHER) else ps.setObject(i + 1, v.toString(), Types.OTHER)
                 }
                 ps.executeQuery().use { rs -> rs.next(); 200 to (rs.getString(1) ?: "null") }
-            }
+            }.also { db.commit() }
         } catch (e: PSQLException) {
+            db.rollback()
             val state = e.serverErrorMessage?.sqlState ?: ""
             val code = if (state.startsWith("PT")) state.drop(2).toInt() else 400
             code to JSONObject().put("code", state).put("message", e.serverErrorMessage?.message ?: e.message).toString()
+        } finally {
+            db.autoCommit = true
         }
     }
 

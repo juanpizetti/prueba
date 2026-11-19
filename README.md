@@ -15,7 +15,8 @@ así dos técnicos nunca reciben la misma.
 2. En el proyecto: **SQL Editor → New query**, pegá **todo** el contenido de
    [`supabase/schema.sql`](supabase/schema.sql) y tocá **Run**.
    Crea las tablas, las 3 redes y los usuarios `admin`, `PIZETTI` y `GOMEZ` con **las mismas contraseñas** del sistema anterior.
-   (Se puede volver a ejecutar para actualizar: no borra datos.)
+   (Se puede volver a ejecutar para actualizar: no borra datos. **Hay que volver a ejecutarlo cada vez que cambia este archivo**,
+   por ejemplo para activar el registro de actividad de la versión 2.3.)
 3. En **Project Settings → API** (o *Connect*) copiá:
    - **Project URL** (`https://xxxx.supabase.co`)
    - **Clave pública**: `anon public` o `publishable` (`sb_publishable_…`). **Nunca** la `service_role` / `secret`.
@@ -51,6 +52,7 @@ así dos técnicos nunca reciben la misma.
 | Exportar CSV (Excel) | ✔ | ✘ |
 | Deslizar hacia abajo para actualizar la lista | ✔ | ✔ |
 | Cambiar su propia contraseña | ✔ | ✔ |
+| **Registro de actividad** (log) | ✔ | ✘ |
 
 - **Redes**: cada PC se carga en una red y recibe la primera IP libre de esa red (se saltean dirección de red, gateway y broadcast). Por defecto la IP se **escribe a mano** (debe pertenecer a la red elegida y no estar usada); debajo se sugiere la primera IP libre. Con el interruptor **"Asignar automáticamente"** el servidor asigna la primera IP libre de la red. Al guardar, un cartel informa **la IP asignada**, red, máscara y gateway (con botón para copiar la IP). Si se borra un equipo, su IP vuelve a quedar libre. Redes iniciales:
 
@@ -63,6 +65,11 @@ así dos técnicos nunca reciben la misma.
   Se modifican en *menú → Redes* (por ejemplo, para reservar IPs para servidores o impresoras acortando el rango a asignar).
 - **IP y MAC no se pueden repetir**: se validan antes de guardar (indicando qué equipo ya la usa) y además la base tiene índices `UNIQUE`.
 - La MAC se acepta como `AA:BB:CC:DD:EE:FF`, `AA-BB-…`, `AABB.CCDD.EEFF` o `AABBCCDDEEFF` y se guarda normalizada, así no se "cuelan" duplicados escritos distinto. La IP se normaliza (`192.168.001.010` → `192.168.1.10`).
+- **Registro de actividad** (menú ⋮ → *Registro de actividad*, sólo admin): ingresos e intentos fallidos, cierres de sesión,
+  PCs cargadas / modificadas (IP y MAC antes → después) / activadas / desactivadas / eliminadas, altas y bajas de usuarios,
+  cambios de rol y contraseña, y cambios de redes. Cada línea guarda **quién**, **cuándo**, la **IP pública desde donde se
+  conectó** y el **celular y versión de la app**. Se puede buscar y filtrar (Ingresos, PCs, Usuarios, Redes). El registro lo
+  escribe el servidor y no hay forma de borrarlo desde la app.
 - Búsqueda por nombre, IP, MAC, oficina o correo y filtros Todos / Pendientes / Activos.
 - El logo aparece en el ícono de la app, el login, la barra superior de todas las pantallas, los diálogos y como marca de agua.
 
